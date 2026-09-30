@@ -1,0 +1,160 @@
+package com.arjun.crm.config;
+
+import com.arjun.crm.security.JwtAuthenticationFilter;
+import com.arjun.crm.security.OAuth2SuccessHandler;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final UserDetailsService userDetailsService;
+    private final CorsConfigurationSource corsConfigurationSource;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+
+    @Value("${app.oauth2-frontend-failure-url:http://localhost:3000/login?error=oauth2_failed}")
+    private String oauth2FailureUrl;
+
+    @Value("${spring.profiles.active:}")
+    private String activeProfiles;
+
+    /**
+     * Chain 1 — OAuth2 social login only.
+     * Handles /oauth2/** and /login/oauth2/** with a session (required for
+     * the PKCE state parameter during the redirect handshake).
+     * After the success handler runs, the session is invalidated and the JWT
+     * is sent to the frontend. This chain has ORDER 1 (highest priority).
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain oauth2FilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/oauth2/**", "/login/oauth2/**")
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .csrf(AbstractHttpConfigurer::disable)
+            // Sessions ARE needed here for the OAuth2 redirect state
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+            .oauth2Login(oauth2 -> oauth2
+                .successHandler(oAuth2SuccessHandler)
+                .failureUrl(oauth2FailureUrl)
+            );
+        return http.build();
+    }
+
+    /**
+     * Chain 2 — All other requests (API, WebSocket, static).
+     * Fully STATELESS — JWT only, no session cookies created or read.
+     * This is the chain that was incorrectly using IF_REQUIRED and creating
+     * short-lived sessions that expired in ~30 seconds, causing false logouts.
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        var authBuilder = http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .csrf(AbstractHttpConfigurer::disable)
+            // STATELESS — no session cookies, no session creation
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // ═════════════════════════════════════════════════════════════════════
+            // SECURITY HEADERS FOR PRODUCTION (HTTPS/HSTS)
+            // ═════════════════════════════════════════════════════════════════════
+            // These headers protect against various attacks including:
+            // - HSTS: Prevents downgrade from HTTPS to HTTP
+            // - X-Content-Type-Options: Prevents MIME sniffing attacks
+            // - X-Frame-Options: Prevents clickjacking attacks
+            // - X-XSS-Protection: Provides XSS protection in older browsers
+            // - Content-Security-Policy: Restricts resource loading (prevent XSS)
+            // - Referrer-Policy: Controls referrer information leakage
+            .headers(headers -> headers
+                // ⚠️ HSTS: Tell browsers to only connect via HTTPS for 1 year
+                // Once set, browsers will refuse HTTP connections for all subdomains
+                // PRODUCTION: Set only on HTTPS endpoints
+                .httpStrictTransportSecurity()
+                    .includeSubDomains(true)    // Apply to all subdomains
+                    .preload(true)              // Allow inclusion in HSTS preload list
+                    .maxAgeInSeconds(31536000)  // 1 year = 365 * 24 * 60 * 60
+                .and()
+                // ⚠️ X-Content-Type-Options: Prevent MIME type sniffing
+                // Tells browsers to respect the Content-Type header, don't guess
+                .contentTypeOptions()
+                .and()
+                // ⚠️ X-Frame-Options: Prevent clickjacking attacks
+                // DENY: Don't allow framing in any context (most secure)
+                .frameOptions().deny()
+            )
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/api/auth/**").permitAll());
+
+        // PRODUCTION HARDENING: Only allow test endpoints in dev/test profiles
+        if (!isProductionProfile()) {
+            authBuilder.authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/test/**").permitAll());
+        }
+
+        authBuilder.authorizeHttpRequests(auth -> auth
+                .requestMatchers("/ws/**").permitAll()
+                .requestMatchers("/ws", "/ws/").permitAll()
+                .requestMatchers("/ws/info").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                // Brevo webhook endpoint must be publicly accessible (Brevo does not send a JWT)
+                .requestMatchers("/api/webhooks/**").permitAll()
+                // Pixels and CTA redirects are loaded by email clients, not authenticated browsers.
+                .requestMatchers("/api/campaigns/track/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .authenticationProvider(authenticationProvider())
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        return authBuilder.build();
+    }
+
+    /**
+     * Helper method to determine if running in production profile
+     */
+    private boolean isProductionProfile() {
+        return activeProfiles != null && activeProfiles.contains("prod");
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+}

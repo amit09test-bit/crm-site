@@ -1,0 +1,10 @@
+{
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfile": "./Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "java -jar app.jar",
+    "restartPolicyMaxRetries": 5
+  }
+}

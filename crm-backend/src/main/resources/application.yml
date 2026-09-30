@@ -1,0 +1,435 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# CRM Backend - Application Configuration
+# Enterprise AI-Powered Task Manager + CRM + Collaboration Platform
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────
+# Spring Application Configuration
+# ───────────────────────────────────────────────────────────────────────────
+spring:
+  application:
+    name: crm-backend
+  
+  main:
+    allow-bean-definition-overriding: true
+  
+  # ─────────────────────────────────────────────────────────────────────────
+  # OAuth2 Client Configuration (Google & GitHub)
+  # ─────────────────────────────────────────────────────────────────────────
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:placeholder}
+            client-secret: ${GOOGLE_CLIENT_SECRET:placeholder}
+            scope: openid,profile,email
+            redirect-uri: "${OAUTH2_REDIRECT_URI_GOOGLE:https://crm-taskflow-production.up.railway.app/login/oauth2/code/google}"
+          github:
+            client-id: ${GITHUB_CLIENT_ID:placeholder}
+            client-secret: ${GITHUB_CLIENT_SECRET:placeholder}
+            scope: read:user,user:email
+            redirect-uri: "${OAUTH2_REDIRECT_URI_GITHUB:https://crm-taskflow-production.up.railway.app/login/oauth2/code/github}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://www.googleapis.com/oauth2/v4/token
+            user-info-uri: https://www.googleapis.com/oauth2/v1/userinfo
+            user-name-attribute: sub
+          github:
+            authorization-uri: https://github.com/login/oauth/authorize
+            token-uri: https://github.com/login/oauth/access_token
+            user-info-uri: https://api.github.com/user
+            user-name-attribute: id
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Database Configuration (PostgreSQL)
+  # ─────────────────────────────────────────────────────────────────────────
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://db.xkzpzcvwzqjavftrnxjl.supabase.co:5432/postgres?sslmode=require}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: CRM-HikariPool
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JPA / Hibernate Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: ${HIBERNATE_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        generate_statistics: false
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Redis Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 60000
+      ssl:
+        enabled: ${REDIS_SSL:false}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+        shutdown-timeout: 100ms
+    
+    # ───────────────────────────────────────────────────────────────────────
+    # Pagination Configuration
+    # ───────────────────────────────────────────────────────────────────────
+    web:
+      pageable:
+        default-page-size: ${DEFAULT_PAGE_SIZE:20}
+        max-page-size: ${MAX_PAGE_SIZE:100}
+        one-indexed-parameters: false
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Cache Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000  # 10 minutes default
+      cache-null-values: false
+      use-key-prefix: true
+      key-prefix: "crm:cache:"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # File Upload Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:10MB}
+      file-size-threshold: 2MB
+      location: ${TEMP_UPLOAD_DIR:${java.io.tmpdir}}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Async Task Execution Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  task:
+    execution:
+      pool:
+        core-size: ${ASYNC_CORE_POOL_SIZE:5}
+        max-size: ${ASYNC_MAX_POOL_SIZE:10}
+        queue-capacity: ${ASYNC_QUEUE_CAPACITY:100}
+        keep-alive: 60s
+      thread-name-prefix: async-executor-
+    
+    # ───────────────────────────────────────────────────────────────────────
+    # Scheduled Task Configuration
+    # ───────────────────────────────────────────────────────────────────────
+    scheduling:
+      pool:
+        size: ${SCHEDULER_POOL_SIZE:5}
+      thread-name-prefix: scheduler-
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Jackson JSON Configuration
+  # ─────────────────────────────────────────────────────────────────────────
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Mail Configuration (Gmail SMTP)
+  # ─────────────────────────────────────────────────────────────────────────
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 30000
+          timeout: 30000
+          writetimeout: 30000
+        debug: false
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Pagination Configuration (merged with spring.data above)
+  # ─────────────────────────────────────────────────────────────────────────
+  # Moved to spring.data.web section above to avoid duplicate key
+
+# ───────────────────────────────────────────────────────────────────────────
+# Server Configuration
+# ───────────────────────────────────────────────────────────────────────────
+server:
+  port: ${PORT:${SERVER_PORT:8080}}
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+  servlet:
+    context-path: ${CONTEXT_PATH:}
+    session:
+      timeout: 30m
+
+# ───────────────────────────────────────────────────────────────────────────
+# Logging Configuration
+# ───────────────────────────────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.arjun.crm: ${LOG_LEVEL:INFO}
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.springframework.cache: INFO
+    org.springframework.data.redis: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE:logs/crm-backend.log}
+    max-size: 10MB
+    max-history: 30
+    total-size-cap: 1GB
+
+# ───────────────────────────────────────────────────────────────────────────
+# Management & Actuator Configuration
+# ───────────────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+    mail:
+      enabled: false
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Application-Specific Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────
+# OAuth2 Configuration
+# ───────────────────────────────────────────────────────────────────────────
+oauth2:
+  redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:3000/oauth2/callback}
+
+# ───────────────────────────────────────────────────────────────────────────
+# JWT Configuration
+# ───────────────────────────────────────────────────────────────────────────
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}  # 24 hours in milliseconds
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 days
+  issuer: ${JWT_ISSUER:crm-backend}
+
+# ───────────────────────────────────────────────────────────────────────────
+# File Upload Configuration (LEGACY - Deprecated)
+# ───────────────────────────────────────────────────────────────────────────
+file:
+  upload:
+    dir: ${UPLOAD_DIR:uploads/task-attachments}
+    max-size: ${FILE_MAX_SIZE:10485760}  # 10MB in bytes
+    allowed-extensions: jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip
+    create-dir-if-not-exists: true
+
+# ───────────────────────────────────────────────────────────────────────────
+# Cloudinary Configuration - Cloud Storage Service for Chat & Task Attachments
+# ───────────────────────────────────────────────────────────────────────────
+cloudinary:
+  # Cloudinary Cloud Name
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  
+  # Cloudinary API Key (server-side only)
+  api-key: ${CLOUDINARY_API_KEY:}
+  
+  # Cloudinary API Secret (server-side only)
+  api-secret: ${CLOUDINARY_API_SECRET:}
+  
+  # Storage Configuration
+  storage:
+    # Maximum file size in bytes (100MB)
+    max-file-size: ${CLOUDINARY_MAX_FILE_SIZE:104857600}
+    
+    # Allowed file types
+    allowed-resources-types: ${CLOUDINARY_ALLOWED_RESOURCE_TYPES:image,video,raw}
+    
+    # Folder for chat attachments
+    chat-folder: ${CLOUDINARY_CHAT_FOLDER:chat}
+    
+    # Folder for task attachments
+    task-folder: ${CLOUDINARY_TASK_FOLDER:tasks}
+    
+    # Enable auto cleanup of unused files (optional)
+    auto-cleanup-enabled: ${CLOUDINARY_AUTO_CLEANUP:false}
+
+# ───────────────────────────────────────────────────────────────────────────
+# AI Configuration (xAI)
+# ───────────────────────────────────────────────────────────────────────────
+ai:
+  xai:
+    api-key: ${XAI_API_KEY:}
+    model: ${XAI_MODEL:openai/gpt-oss-120b}
+    base-url: ${XAI_BASE_URL:https://api.groq.com/openai/v1/chat/completions}
+    temperature: ${AI_TEMPERATURE:0.7}
+    max-tokens: ${AI_MAX_TOKENS:1000}
+    timeout: ${AI_TIMEOUT:30000}  # 30 seconds
+    retry:
+      max-attempts: ${AI_RETRY_MAX_ATTEMPTS:3}
+      backoff-delay: ${AI_RETRY_BACKOFF:1000}  # 1 second
+  cache:
+    ttl: ${AI_CACHE_TTL:1800000}  # 30 minutes
+
+# ───────────────────────────────────────────────────────────────────────────
+# WebSocket Configuration
+# ───────────────────────────────────────────────────────────────────────────
+websocket:
+  allowed-origins: ${WEBSOCKET_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080}
+  stomp:
+    broker:
+      relay-host: ${STOMP_RELAY_HOST:}
+      relay-port: ${STOMP_RELAY_PORT:61613}
+      client-login: ${STOMP_CLIENT_LOGIN:guest}
+      client-passcode: ${STOMP_CLIENT_PASSCODE:guest}
+      use-external-broker: ${USE_EXTERNAL_BROKER:false}
+    heartbeat:
+      incoming: 10000
+      outgoing: 10000
+
+# ───────────────────────────────────────────────────────────────────────────
+# CORS Configuration
+# ───────────────────────────────────────────────────────────────────────────
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,chrome-extension://figdiiedkddjcemakndcfielfdgfoonm}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  exposed-headers: ${CORS_EXPOSED_HEADERS:Authorization,Content-Type}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+  max-age: ${CORS_MAX_AGE:3600}
+
+# ───────────────────────────────────────────────────────────────────────────
+# Cache Configuration (Custom TTLs)
+# ───────────────────────────────────────────────────────────────────────────
+cache:
+  ttl:
+    dashboard: 600000      # 10 minutes
+    analytics: 600000      # 10 minutes
+    ai-responses: 1800000  # 30 minutes
+    user-profile: 3600000  # 1 hour
+    notifications: 300000  # 5 minutes
+
+# ───────────────────────────────────────────────────────────────────────────
+# API Documentation (SpringDoc OpenAPI)
+# ───────────────────────────────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+    path: /api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_UI_ENABLED:true}
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    doc-expansion: none
+  show-actuator: false
+
+# ───────────────────────────────────────────────────────────────────────────
+# Email Configuration (Brevo HTTP API)
+# ───────────────────────────────────────────────────────────────────────────
+app:
+  campaign-tracking-base-url: ${CAMPAIGN_TRACKING_BASE_URL:http://localhost:8080}
+  mail:
+    from: ${APP_MAIL_FROM:xsde790@gmail.com}
+    from-name: ${APP_MAIL_FROM_NAME:TaskFlow}
+  invitation-base-url: ${INVITATION_BASE_URL:http://localhost:3000/invitations}
+  oauth2-frontend-failure-url: ${OAUTH2_FRONTEND_FAILURE_URL:http://localhost:3000/login?error=oauth2_failed}
+
+# ───────────────────────────────────────────────────────────────────────────
+# Brevo Configuration
+# ───────────────────────────────────────────────────────────────────────────
+brevo:
+  api-key: ${BREVO_API_KEY}
+  api-url: https://api.brevo.com/v3/smtp/email
+# ───────────────────────────────────────────────────────────────────────────
+# Automation Scheduler Configuration - PHASE 7.1
+# ───────────────────────────────────────────────────────────────────────────
+scheduler:
+  automation:
+    # Interval between scheduler checks for ready executions (in milliseconds)
+    # Default: 15000 (15 seconds)
+    # Min: 1000 (1 second) - for testing only
+    # Recommended: 10000-30000 (10-30 seconds) - production
+    # Higher values: less frequent checks, but lower database load
+    # Lower values: faster resumption, but more database queries
+    resumeInterval: ${AUTOMATION_RESUME_INTERVAL:15000}
+    
+    # Initial delay before first scheduler run (in milliseconds)
+    # Default: 5000 (5 seconds)
+    # Allows application time to initialize before scheduler starts
+    initialDelay: ${AUTOMATION_INITIAL_DELAY:5000}
+
+# ───────────────────────────────────────────────────────────────────────────
+# Chrome Extension Browser Runner Configuration (Phase 6B)
+# ─────────────────────────────────────────────────────────────────────────
+chrome:
+  extension:
+    runner:
+      base-url: ${EXTENSION_RUNNER_BASE_URL:http://localhost:9090}
+      shared-secret: ${RUNNER_SHARED_SECRET:}
+      timeout-seconds: ${EXTENSION_RUNNER_TIMEOUT:30}
+

@@ -1,0 +1,23 @@
+{
+  "name": "chrome-extension-playground",
+  "version": "1.0.0",
+  "description": "Chrome Extension playground for testing CRUD operations against TaskFlow CRM",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/validate-extension.js && node test/e2e-chromium.test.js",
+    "test:unit": "node test/validate-extension.js",
+    "test:e2e": "node test/e2e-chromium.test.js",
+    "lint": "node test/validate-extension.js",
+    "build": "node test/validate-extension.js",
+    "check": "node test/validate-extension.js"
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "crm",
+    "crud-testing"
+  ],
+  "author": "TaskFlow CRM Team",
+  "license": "ISC"
+}
